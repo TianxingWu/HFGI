@@ -4,6 +4,8 @@ import numpy as np
 import sys
 import os
 
+os.environ['CUDA_VISIBLE_DEVICES'] = "6"
+
 sys.path.append(".")
 sys.path.append("..")
 
@@ -149,6 +151,8 @@ if __name__ == "__main__":
     parser.add_argument("--edit_attribute", type=str, default='smile', help="The desired attribute")
     parser.add_argument("--edit_degree", type=float, default=0, help="edit degreee")
     parser.add_argument("ckpt", metavar="CHECKPOINT", help="path to generator checkpoint")
+    # parser.add_argument("--gpu", type=str, default='4', help="The id of the gpu to use")
 
     args = parser.parse_args()
+    # os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
     main(args)
