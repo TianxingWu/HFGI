@@ -4,45 +4,21 @@ import numpy as np
 import scipy
 import scipy.ndimage
 import PIL.Image
-def landmarks_to_np(landmarks, dtype="int"):
-    # initialize the list of (x, y)-coordinates
-    coords = np.zeros((landmarks.num_parts, 2), dtype=dtype)
 
-    # loop over the facial landmarks and convert them
-    # to a 2-tuple of (x, y)-coordinates
-    for i in range(0, landmarks.num_parts):
-        coords[i] = (landmarks.part(i).x, landmarks.part(i).y)
-    # return the list of (x, y)-coordinates
-    return coords
-
-def test():
-    predictor_path = "./experiment/test/shape_predictor_5_face_landmarks.dat"
-    detector = dlib.get_frontal_face_detector()
-    predictor = dlib.shape_predictor(predictor_path)
-    
-    img = cv2.imread("./experiment/test/915.jpg")
-    dets = detector(img, 1)
-    if 0 == len(dets):
-        return None
-    det_areas = [(det.right()-det.left())*(det.bottom()-det.top()) for det in dets]
-
-    large_det = dets[det_areas.index(max(det_areas))]
-    shape = predictor(img, large_det)
-    landmarks = landmarks_to_np(shape)
-    EYE_LEFT_OUTTER = landmarks[2]
-    EYE_LEFT_INNER = landmarks[3]
-    EYE_RIGHT_OUTTER = landmarks[0]
-    EYE_RIGHT_INNER = landmarks[1]
-    # EYE_LEFT_CENTER = 
+from editings.ganspace import edit
 
 
-def get_landmark(filepath, predictor, return_largest=True):
+def get_landmark(img, predictor, detector, return_largest=True):
     """get landmark with dlib
+    :param img: np.ndarray
+    :param predictor: dlib predictor
+    :param detector: dlib detector
+    :param return_largest: whether return the landmarks of the largest face or of all faces
     :return: np.array shape=(68, 2)
     """
-    detector = dlib.get_frontal_face_detector()
+    # detector = dlib.get_frontal_face_detector()
 
-    img = dlib.load_rgb_image(filepath)
+    # img = dlib.load_rgb_image(filepath)
     dets = detector(img, 1)
 
     if return_largest:
@@ -65,13 +41,15 @@ def get_landmark(filepath, predictor, return_largest=True):
     return lm
 
 
-def align_face(filepath):
+def align_face(img, predictor, detector):
     """
-    :param filepath: str
+    :param img: PIL Image
+    :param predictor: dlib predictor
+    :param detector: dlib detector
     :return: PIL Image
     """
-    predictor = dlib.shape_predictor("./experiment/test/shape_predictor_68_face_landmarks.dat")
-    lm = get_landmark(filepath, predictor, return_largest=True)
+    # predictor = dlib.shape_predictor("./experiment/test/shape_predictor_68_face_landmarks.dat")
+    lm = get_landmark(np.array(img), predictor, detector, return_largest=True)
 
     lm_chin = lm[0:17]  # left-right
     lm_eyebrow_left = lm[17:22]  # left-right
@@ -102,8 +80,9 @@ def align_face(filepath):
     quad = np.stack([c - x - y, c - x + y, c + x + y, c + x - y])
     qsize = np.hypot(*x) * 2
 
+    quad_orig = np.copy(quad)
     # read image
-    img = PIL.Image.open(filepath)
+    # img = PIL.Image.open(filepath)
 
     output_size = 256
     transform_size = 256
@@ -181,10 +160,103 @@ def align_face(filepath):
         img = img.resize((output_size, output_size), PIL.Image.ANTIALIAS)
 
     # Return aligned image.
-    return img
+    # and corner points of the quad (relative to crop)
+    return img, quad+0.5, quad_orig, crop, pad
 
+
+def attach_face(face_img, orig_img, face_quad, orig_quad, crop, pad):
+    face_img = np.array(face_img)
+    orig_img = np.array(orig_img)
+
+    # zero padding orig
+    left = max(0, (pad[0] - crop[0]))
+    top = max(0, (pad[1] - crop[1]))
+    right = max(0, (pad[2] - (orig_img.shape[1] - crop[2])))
+    bottom = max(0, (pad[3] - (orig_img.shape[0] - crop[3])))
+    padded_img = cv2.copyMakeBorder(orig_img, top, bottom, left, right, cv2.BORDER_REFLECT)
+    orig_quad = orig_quad + [left, top]
+
+    # top left, bottom left, bottom right, top right
+    src_pts = np.array([
+        [0, 0],
+        [0, face_img.shape[0]],
+        [face_img.shape[1], face_img.shape[0]],
+        [face_img.shape[1], 0],
+    ], dtype=np.float32)
+
+    dst_pts = np.float32(orig_quad)
+
+    # transform and warp face image
+    M = cv2.getPerspectiveTransform(src_pts, dst_pts)
+    padded_size = (padded_img.shape[1], padded_img.shape[0])
+    warped_face = cv2.warpPerspective(face_img, M, dsize=padded_size, flags=cv2.INTER_NEAREST)
+
+    # =========== Seamless Clone ===========
+    mask = np.copy(warped_face)
+    mask = cv2.fillConvexPoly(mask, np.int32(np.rint(face_quad)), (255, 255, 255), lineType=cv2.LINE_AA)
+    center = tuple(np.int32(np.sum(orig_quad, axis=0) / 4))
+    # mixed_clone = cv2.seamlessClone(warped_face, cropped_img, mask, center, cv2.MIXED_CLONE)
+    normal_clone = cv2.seamlessClone(warped_face, padded_img, mask, center, cv2.NORMAL_CLONE)
+    normal_clone = normal_clone[top:normal_clone.shape[0]-bottom, left:normal_clone.shape[1]-right]
+    ret = PIL.Image.fromarray(normal_clone)
+    return ret
+
+
+def attach_face_cropped(face_img, cropped_img, quad):
+    # convert to numpy
+    face_img = np.array(face_img)
+    cropped_img = np.array(cropped_img)
+
+    # top left, bottom left, bottom right, top right
+    src_pts = np.array([
+        [0, 0],
+        [0, face_img.shape[0]],
+        [face_img.shape[1], face_img.shape[0]],
+        [face_img.shape[1], 0],
+    ], dtype=np.float32)
+
+    dst_pts = np.float32(quad)
+
+    # transform and warp face image
+    M = cv2.getPerspectiveTransform(src_pts, dst_pts)
+    cropped_img_size = (cropped_img.shape[1], cropped_img.shape[0])
+    warped_face = cv2.warpPerspective(face_img, M, dsize=cropped_img_size, flags=cv2.INTER_NEAREST)
+
+
+    # =========== Simple Mask
+    # # get mask and attach
+    # # cv2.fillConvexPoly(cropped_img, np.int32(np.rint(quad)), (0, 0, 0), lineType=cv2.LINE_AA)
+    # # img_middle = cropped_img
+    # # out = cv2.add(warped_face, img_middle)
+    # gray = cv2.cvtColor(warped_face, cv2.COLOR_BGR2GRAY)
+    # _, mask = cv2.threshold(gray, 1, 255, cv2.THRESH_BINARY_INV)
+    # # mask_inv = cv2.bitwise_not(mask)
+
+    # cropped_img = cv2.bitwise_and(cropped_img, cropped_img, mask=mask)
+    # out = cv2.add(warped_face, cropped_img)
+
+    # =========== Seamless Clone
+    mask = np.copy(warped_face)
+    mask = cv2.fillConvexPoly(mask, np.int32(np.rint(quad)), (255, 255, 255), lineType=cv2.LINE_AA)
+    center = tuple(np.int32(np.sum(quad, axis=0) / 4))
+    # mixed_clone = cv2.seamlessClone(warped_face, cropped_img, mask, center, cv2.MIXED_CLONE)
+    normal_clone = cv2.seamlessClone(warped_face, cropped_img, mask, center, cv2.NORMAL_CLONE)
+
+    return normal_clone
+    
 
 if __name__=='__main__':
     # test()
-    face_img = align_face("./experiment/test/155.jpg")
-    face_img.save("./experiment/test/155_aligned.jpg")
+    detector = dlib.get_frontal_face_detector()
+    predictor = dlib.shape_predictor("./experiment/test/shape_predictor_68_face_landmarks.dat")
+
+    img = PIL.Image.open("./experiment/test/155.jpg")
+    face_img, face_quad, orig_quad, crop, pad = align_face(img, predictor, detector)
+
+    edited_face_img = PIL.Image.open("./experiment/inference_results/smile/00001.jpg")
+    cropped_img = PIL.Image.open("./experiment/test/cropped_img.png")
+    # attach_face_cropped(edited_face_img, cropped_img, face_quad)
+    edited_img = attach_face(edited_face_img, img, face_quad, orig_quad, crop, pad)
+    edited_img.save("./experiment/inference_results/edited_img.jpg")
+
+    # face_img.save("./experiment/test/155_aligned.jpg")
