@@ -5,8 +5,6 @@ import scipy
 import scipy.ndimage
 import PIL.Image
 
-from editings.ganspace import edit
-
 
 def get_landmark(img, predictor, detector, return_largest=True):
     """get landmark with dlib
@@ -16,9 +14,7 @@ def get_landmark(img, predictor, detector, return_largest=True):
     :param return_largest: whether return the landmarks of the largest face or of all faces
     :return: np.array shape=(68, 2)
     """
-    # detector = dlib.get_frontal_face_detector()
 
-    # img = dlib.load_rgb_image(filepath)
     dets = detector(img, 1)
 
     if return_largest:
@@ -48,7 +44,6 @@ def align_face(img, predictor, detector):
     :param detector: dlib detector
     :return: PIL Image
     """
-    # predictor = dlib.shape_predictor("./experiment/test/shape_predictor_68_face_landmarks.dat")
     lm = get_landmark(np.array(img), predictor, detector, return_largest=True)
 
     lm_chin = lm[0:17]  # left-right
@@ -161,10 +156,10 @@ def align_face(img, predictor, detector):
 
     # Return aligned image.
     # and corner points of the quad (relative to crop)
-    return img, quad+0.5, quad_orig, crop, pad
+    return img, quad_orig, np.array(crop), np.array(pad)
 
 
-def attach_face(face_img, orig_img, face_quad, orig_quad, crop, pad):
+def attach_face(face_img, orig_img, quad, crop, pad):
     face_img = np.array(face_img)
     orig_img = np.array(orig_img)
 
@@ -174,7 +169,7 @@ def attach_face(face_img, orig_img, face_quad, orig_quad, crop, pad):
     right = max(0, (pad[2] - (orig_img.shape[1] - crop[2])))
     bottom = max(0, (pad[3] - (orig_img.shape[0] - crop[3])))
     padded_img = cv2.copyMakeBorder(orig_img, top, bottom, left, right, cv2.BORDER_REFLECT)
-    orig_quad = orig_quad + [left, top]
+    quad = quad + [left, top]
 
     # top left, bottom left, bottom right, top right
     src_pts = np.array([
@@ -184,7 +179,7 @@ def attach_face(face_img, orig_img, face_quad, orig_quad, crop, pad):
         [face_img.shape[1], 0],
     ], dtype=np.float32)
 
-    dst_pts = np.float32(orig_quad)
+    dst_pts = np.float32(quad)
 
     # transform and warp face image
     M = cv2.getPerspectiveTransform(src_pts, dst_pts)
@@ -193,8 +188,9 @@ def attach_face(face_img, orig_img, face_quad, orig_quad, crop, pad):
 
     # =========== Seamless Clone ===========
     mask = np.copy(warped_face)
-    mask = cv2.fillConvexPoly(mask, np.int32(np.rint(face_quad)), (255, 255, 255), lineType=cv2.LINE_AA)
-    center = tuple(np.int32(np.sum(orig_quad, axis=0) / 4))
+    # mask = cv2.fillConvexPoly(mask, np.int32(np.rint(face_quad)), (255, 255, 255), lineType=cv2.LINE_AA)
+    mask = cv2.fillConvexPoly(mask, np.int32(np.rint(quad)), (255, 255, 255), lineType=cv2.LINE_AA)
+    center = tuple(np.int32(np.sum(quad, axis=0) / 4))
     # mixed_clone = cv2.seamlessClone(warped_face, cropped_img, mask, center, cv2.MIXED_CLONE)
     normal_clone = cv2.seamlessClone(warped_face, padded_img, mask, center, cv2.NORMAL_CLONE)
     normal_clone = normal_clone[top:normal_clone.shape[0]-bottom, left:normal_clone.shape[1]-right]
@@ -248,15 +244,15 @@ def attach_face_cropped(face_img, cropped_img, quad):
 if __name__=='__main__':
     # test()
     detector = dlib.get_frontal_face_detector()
-    predictor = dlib.shape_predictor("./experiment/test/shape_predictor_68_face_landmarks.dat")
+    predictor = dlib.shape_predictor("../experiment/test/shape_predictor_68_face_landmarks.dat")
 
-    img = PIL.Image.open("./experiment/test/155.jpg")
-    face_img, face_quad, orig_quad, crop, pad = align_face(img, predictor, detector)
+    img = PIL.Image.open("../experiment/test/155.jpg")
+    face_img, quad, crop, pad = align_face(img, predictor, detector)
 
-    edited_face_img = PIL.Image.open("./experiment/inference_results/smile/00001.jpg")
-    cropped_img = PIL.Image.open("./experiment/test/cropped_img.png")
+    edited_face_img = PIL.Image.open("../experiment/inference_results/smile/00001.jpg")
+    cropped_img = PIL.Image.open("../experiment/test/cropped_img.png")
     # attach_face_cropped(edited_face_img, cropped_img, face_quad)
-    edited_img = attach_face(edited_face_img, img, face_quad, orig_quad, crop, pad)
-    edited_img.save("./experiment/inference_results/edited_img.jpg")
+    edited_img = attach_face(edited_face_img, img, quad, crop, pad)
+    edited_img.save("../experiment/inference_results/edited_img.jpg")
 
-    # face_img.save("./experiment/test/155_aligned.jpg")
+    # face_img.save("../experiment/test/155_aligned.jpg")
