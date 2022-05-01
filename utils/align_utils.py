@@ -16,7 +16,8 @@ def get_landmark(img, predictor, detector, return_largest=True):
     """
 
     dets = detector(img, 1)
-
+    if len(dets)==0:
+        return None
     if return_largest:
         # only return landmarks of the largest face
         det_areas = [(det.right()-det.left())*(det.bottom()-det.top()) for det in dets]
@@ -45,6 +46,8 @@ def align_face(img, predictor, detector):
     :return: PIL Image
     """
     lm = get_landmark(np.array(img), predictor, detector, return_largest=True)
+    if lm is None:
+        return None, None, None, None
 
     lm_chin = lm[0:17]  # left-right
     lm_eyebrow_left = lm[17:22]  # left-right
