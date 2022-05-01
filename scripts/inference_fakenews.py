@@ -50,7 +50,7 @@ def main(args):
     processed_num = 0
     skipped_num = 0
     # skipped_id = []
-    pbar = tqdm(range(0, total_size, loop_size))
+    pbar = tqdm(range(0, total_size, loop_size), desc=f"{args.edit_attribute}-{ID}")
     for iter_idx in pbar:
         posts_sub = posts[iter_idx : min(iter_idx+loop_size, total_size)]
         args.image_paths = [os.path.join(args.image_root, post['image_path'][2:]) for post in posts_sub]
@@ -162,7 +162,7 @@ def setup_data_loader(args, opts):
                              collate_fn=safe_collate_fn)
                             # )
 
-    print(f'dataset length: {len(test_dataset)}')
+    # print(f'dataset length: {len(test_dataset)}')
 
     if args.n_sample is None:
         args.n_sample = len(test_dataset)
