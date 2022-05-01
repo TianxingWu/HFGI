@@ -5,8 +5,7 @@ import sys
 import os
 import math
 import json
-
-os.environ['CUDA_VISIBLE_DEVICES'] = "6"
+from tqdm import tqdm
 
 sys.path.append(".")
 sys.path.append("..")
@@ -48,7 +47,11 @@ def main(args):
     total_size = END - START
     loop_size = args.loop_size
     
-    for iter_idx in range(0, total_size, loop_size):
+    processed_num = 0
+    skipped_num = 0
+    # skipped_id = []
+    pbar = tqdm(range(0, total_size, loop_size))
+    for iter_idx in pbar:
         posts_sub = posts[iter_idx : min(iter_idx+loop_size, total_size)]
         args.image_paths = [os.path.join(args.image_root, post['image_path'][2:]) for post in posts_sub]
         args, data_loader, dataset = setup_data_loader(args, opts)
@@ -77,12 +80,21 @@ def main(args):
 
         # perform high-fidelity inversion or editing
         for i, batch in enumerate(data_loader):
+            pbar.set_postfix({
+                    'progress': f'{processed_num}/{total_size}',
+                    'skipped': skipped_num,
+                })
+            
             if args.n_sample is not None and i > args.n_sample:
                 print('inference finished!')
                 break
-                
+            
+            processed_num += 1
             if batch is None:
-                print(f"No face detected in id {posts_sub[i]['id']}, skip.")
+                skipped_num += 1
+                # pbar.update()
+                # skipped_id.append[posts_sub[i]['id']]
+                # print(f"No face detected in id {posts_sub[i]['id']}, skip.")
                 continue
             x = batch[0].to(device).float()  # images
 
@@ -127,6 +139,7 @@ def main(args):
                 im_save_path = os.path.join(edit_directory_path, f"{posts_sub[i]['id']}-{args.edit_attribute}.jpg")
                 edited_img.save(im_save_path)
 
+
 def setup_data_loader(args, opts):
     dataset_args = data_configs.DATASETS[opts.dataset_type]
     transforms_dict = dataset_args['transforms'](opts).get_transforms()
@@ -154,10 +167,6 @@ def setup_data_loader(args, opts):
     if args.n_sample is None:
         args.n_sample = len(test_dataset)
     return args, data_loader, test_dataset
-
-
-
-
 
 
 def get_latents(net, x, is_cars=False):

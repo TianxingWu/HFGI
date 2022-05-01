@@ -3,6 +3,7 @@
 
 # === smile manipulation ===
 
+CUDA_VISIBLE_DEVICES=6 \
 python ./scripts/inference_fakenews.py \
 --image_root=/mnt/lustre/share/rshao/data/FakeNews/VisualNews/origin/ \
 --json_dir=/mnt/lustre/share/txwu/data/FakeNews/Ours/metadata/restrict_faces_num/posts_allconfident.json \
