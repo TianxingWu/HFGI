@@ -195,7 +195,13 @@ def attach_face(face_img, orig_img, quad, crop, pad):
     mask = cv2.fillConvexPoly(mask, np.int32(np.rint(quad)), (255, 255, 255), lineType=cv2.LINE_AA)
     center = tuple(np.int32(np.sum(quad, axis=0) / 4))
     # mixed_clone = cv2.seamlessClone(warped_face, cropped_img, mask, center, cv2.MIXED_CLONE)
-    normal_clone = cv2.seamlessClone(warped_face, padded_img, mask, center, cv2.NORMAL_CLONE)
+    
+    # temporary DEBUG！！！！！！！！！
+    try:
+        normal_clone = cv2.seamlessClone(warped_face, padded_img, mask, center, cv2.NORMAL_CLONE)
+    except:
+        # print("abnormal attach!!!!!!!!!!!!!!!!!")
+        return None
     normal_clone = normal_clone[top:normal_clone.shape[0]-bottom, left:normal_clone.shape[1]-right]
     ret = PIL.Image.fromarray(normal_clone)
     return ret

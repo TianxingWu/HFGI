@@ -132,6 +132,11 @@ def main(args):
                 crop = batch[3][j].detach().cpu().numpy()
                 pad = batch[4][j].detach().cpu().numpy()
                 edited_img = attach_face(face_img, orig_img, quad, crop, pad)
+                if edited_img is None: # temporary DEBUG！！！！！！！！！
+                    print(f"id {posts_sub[i]['id']}: ABNORMAL ATTACH!!!!!!!!! (INVERSE ALIGNMENT FAILED)")
+                    skipped_num += 1
+                    continue
+
             # =========================================================
 
                 # save images
