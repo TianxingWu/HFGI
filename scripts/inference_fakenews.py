@@ -140,7 +140,7 @@ def main(args):
             # =========================================================
 
                 # save images
-                orig_name = os.path.basename(dataset.paths[i]).split('.')[0]
+                # orig_name = os.path.basename(dataset.paths[i]).split('.')[0]
                 im_save_path = os.path.join(edit_directory_path, f"{posts_sub[i]['id']}-{args.edit_attribute}.jpg")
                 edited_img.save(im_save_path)
 

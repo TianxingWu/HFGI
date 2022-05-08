@@ -189,6 +189,18 @@ def attach_face(face_img, orig_img, quad, crop, pad):
     padded_size = (padded_img.shape[1], padded_img.shape[0])
     warped_face = cv2.warpPerspective(face_img, M, dsize=padded_size, flags=cv2.INTER_NEAREST)
 
+    # # =========== Simple Mask
+    # # get mask and attach
+    # # cv2.fillConvexPoly(cropped_img, np.int32(np.rint(quad)), (0, 0, 0), lineType=cv2.LINE_AA)
+    # # img_middle = cropped_img
+    # # out = cv2.add(warped_face, img_middle)
+    # gray = cv2.cvtColor(warped_face, cv2.COLOR_BGR2GRAY)
+    # _, mask = cv2.threshold(gray, 1, 255, cv2.THRESH_BINARY_INV)
+    # # mask_inv = cv2.bitwise_not(mask)
+
+    # padded_img = cv2.bitwise_and(padded_img, padded_img, mask=mask)
+    # out = cv2.add(warped_face, padded_img)
+
     # =========== Seamless Clone ===========
     mask = np.copy(warped_face)
     # mask = cv2.fillConvexPoly(mask, np.int32(np.rint(face_quad)), (255, 255, 255), lineType=cv2.LINE_AA)
