@@ -5,7 +5,6 @@ Based on the original [HFGI](https://github.com/Tengfei-Wang/HFGI).
 
 
 ## Environment
-The environment can be simply set up by Anaconda (only tested for inference):
 ```
 # HFGI
 conda create -n myHFGI python=3.6
